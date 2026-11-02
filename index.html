@@ -19,6 +19,7 @@ h1{font-size:23px;margin:0 0 5px}h2{font-size:16px;margin:0 0 13px}.hint,.meta,.
 #pinGate p{font-size:13px;line-height:1.5;color:#667085;margin:0 0 18px}
 #pinGate input{margin:0 0 12px;text-align:center;font-size:22px;letter-spacing:7px}
 #pinGate button{width:100%;padding:12px;border:0;border-radius:9px;background:#244b78;color:#fff;font-weight:bold;font-size:15px;cursor:pointer}
+#pinReset{margin-top:9px!important;background:transparent!important;color:#244b78!important;border:1px solid #e2e8f0!important;font-size:13px!important}
 #pinError{display:block;min-height:18px;margin-top:10px;color:#c13d45;font-size:12px}
 body.dark #pinGate{background:#101722}
 body.dark #pinGate .pinbox{background:#192433;border-color:#2b394b;color:#edf2f7}
@@ -34,6 +35,7 @@ body.dark #pinGate p{color:#aab6c5}
     <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••" aria-label="PIN de acesso">
     <input id="pinConfirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="Confirme o PIN" aria-label="Confirme o PIN" class="hidden">
     <button id="pinButton" type="button">Entrar</button>
+    <button id="pinReset" type="button">Não tenho o PIN / cadastrar novamente</button>
     <span id="pinError" role="alert"></span>
   </div>
 </div>
@@ -72,7 +74,52 @@ body.dark #pinGate p{color:#aab6c5}
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0),today=()=>{let d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')},month=()=>today().slice(0,7),br=s=>s?`${s.slice(8,10)}/${s.slice(5,7)}/${s.slice(0,4)}`:'—',id=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
-let entries=[],data={debts:[],itau:[],cards:[],plans:[],income:0};
+
+  // PIN local: barreira básica, não é autenticação segura.
+  const PIN_KEY='cf_personal_pin_hash_v1';
+  const pinHash=async value=>{
+    const bytes=new TextEncoder().encode(value);
+    const digest=await crypto.subtle.digest('SHA-256',bytes);
+    return Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,'0')).join('');
+  };
+  async function setupPinGate(){
+    const gate=$('pinGate'), input=$('pinInput'), confirmInput=$('pinConfirm');
+    const title=$('pinTitle'), message=$('pinMessage'), button=$('pinButton'), error=$('pinError'), reset=$('pinReset');
+    let creating=!localStorage.getItem(PIN_KEY);
+    const showMode=()=>{
+      title.textContent=creating?'Crie seu PIN':'Acesso protegido';
+      message.textContent=creating?'Defina um PIN numérico de 4 a 8 dígitos para este navegador.':'Digite seu PIN para abrir o Controle Financeiro.';
+      confirmInput.classList.toggle('hidden',!creating);
+      button.textContent=creating?'Salvar PIN':'Entrar';
+      input.value='';confirmInput.value='';error.textContent='';input.focus();
+    };
+    const unlock=()=>{gate.remove();};
+    const submit=async()=>{
+      const pin=input.value.trim();
+      if(!/^\\d{4,8}$/.test(pin)){error.textContent='Use um PIN de 4 a 8 números.';return;}
+      if(creating){
+        if(pin!==confirmInput.value.trim()){error.textContent='Os PINs não conferem.';return;}
+        localStorage.setItem(PIN_KEY,await pinHash(pin));
+        unlock();
+      }else{
+        if(await pinHash(pin)===localStorage.getItem(PIN_KEY)){unlock();}
+        else{error.textContent='PIN incorreto. Tente novamente.';input.value='';input.focus();}
+      }
+    };
+    reset.addEventListener('click',()=>{
+      if(confirm('Isso apagará somente o PIN salvo neste navegador. Seus lançamentos, receitas, despesas e dívidas serão mantidos. Deseja cadastrar um novo PIN?')){
+        localStorage.removeItem(PIN_KEY);
+        creating=true;
+        showMode();
+      }
+    });
+    button.addEventListener('click',submit);
+    input.addEventListener('keydown',e=>{if(e.key==='Enter')creating?confirmInput.focus():submit()});
+    confirmInput.addEventListener('keydown',e=>{if(e.key==='Enter')submit()});
+    showMode();
+  }
+
+  let entries=[],data={debts:[],itau:[],cards:[],plans:[],income:0};
 function load(){try{let a=JSON.parse(localStorage.getItem('cf_personal_v1')||'[]');entries=Array.isArray(a)?a:[]}catch(e){}try{data={...data,...JSON.parse(localStorage.getItem('cf_personal_extra_v2')||'{}')}}catch(e){}['debts','itau','cards','plans'].forEach(k=>{if(!Array.isArray(data[k]))data[k]=[]})}
 function save(){try{localStorage.setItem('cf_personal_v1',JSON.stringify(entries));localStorage.setItem('cf_personal_extra_v2',JSON.stringify(data));return true}catch(e){alert('Falha ao salvar. Exporte um backup e verifique o armazenamento.');return false}}
 const nav=t=>{document.querySelectorAll('.tab').forEach(x=>x.classList.add('hidden'));$(t).classList.remove('hidden');document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));let names={home:['Menu inicial','Visão geral das suas finanças pessoais.'],entries:['Lançamentos','Registre receitas e despesas.'],debts:['Minhas dívidas','Credores, valores, parcelas e quitações.'],itau:['Cartão Itaú','Cronograma de compras parceladas.'],cards:['Mercado Livre e Luane','Controles individuais para cada cartão.'],budget:['Método 50/30/20','Distribuição e acompanhamento do orçamento.'],monthly:['Planejamento mensal','Valores orçados, debitados, recebidos e saldo.']};$('title').textContent=names[t][0];$('subtitle').textContent=names[t][1];render()};
@@ -101,7 +148,7 @@ $('import').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let x=JS
 function download(c,n,t){let a=document.createElement('a'),u=URL.createObjectURL(new Blob([c],{type:t}));a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 $('csv').onclick=()=>{let rows=[['Tipo','Valor','Data','Categoria','Forma','Situação','Grupo 50/30/20','Descrição','Observação'],...entries.map(x=>[x.kind,x.amount,br(x.date),x.category,x.payment,x.status,x.budgetClass,x.description,x.notes])];download('\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n'),'lancamentos-pessoais.csv','text/csv;charset=utf-8')};
 try{if(localStorage.getItem('cf_theme')==='dark')document.body.classList.add('dark')}catch(e){}
-$('ed').value=today();$('dd').value=today();$('pdate').value=today();load();render();
+$('ed').value=today();$('dd').value=today();$('pdate').value=today();load();render();setupPinGate();
 if('serviceWorker'in navigator&&location.protocol.startsWith('http'))addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 })();
 </script></body></html>
