@@ -96,7 +96,7 @@ const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('pt-BR',{st
     const unlock=()=>{gate.remove();};
     const submit=async()=>{
       const pin=input.value.trim();
-      if(!/^\\d{4,8}$/.test(pin)){error.textContent='Use um PIN de 4 a 8 números.';return;}
+      if(!/^\d{4,8}$/.test(pin)){error.textContent='Use um PIN de 4 a 8 números.';return;}
       if(creating){
         if(pin!==confirmInput.value.trim()){error.textContent='Os PINs não conferem.';return;}
         localStorage.setItem(PIN_KEY,await pinHash(pin));
