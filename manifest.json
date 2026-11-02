@@ -1,0 +1,11 @@
+{
+  "name": "Controle Financeiro",
+  "short_name": "Financeiro",
+  "description": "Gestão financeira pessoal e do escritório.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f8",
+  "theme_color": "#172b4d",
+  "lang": "pt-BR"
+}
