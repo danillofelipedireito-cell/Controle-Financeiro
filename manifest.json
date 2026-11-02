@@ -1,7 +1,7 @@
 {
-  "name": "Controle Financeiro",
+  "name": "Controle Financeiro Pessoal",
   "short_name": "Financeiro",
-  "description": "Gestão financeira pessoal e do escritório.",
+  "description": "Finanças pessoais, dívidas, cartões, orçamento e planejamento mensal.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
